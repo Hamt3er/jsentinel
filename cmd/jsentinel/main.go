@@ -1,32 +1,37 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Hamt3er/jsentinel/internal/config"
 	"github.com/Hamt3er/jsentinel/internal/report"
 	"github.com/Hamt3er/jsentinel/internal/scanner"
+	"github.com/Hamt3er/jsentinel/internal/version"
 )
 
 func main() {
 	var (
-		filePath  string
-		targetURL string
-		siteURL   string
-		jsonOut   string
-		mdOut     string
-		timeout   int
-		maxPages  int
-		maxJS     int
-		concur    int
-		ua        string
-		sameHost  bool
-		verbose   bool
+		filePath      string
+		targetURL     string
+		siteURL       string
+		jsonOut       string
+		mdOut         string
+		timeout       int
+		maxPages      int
+		maxJS         int
+		concur        int
+		ua            string
+		sameHost      bool
+		verbose       bool
+		showVersion   bool
+		skipUpdCheck  bool
 	)
 
 	flag.StringVar(&filePath, "file", "", "Path to local JavaScript file")
@@ -41,7 +46,26 @@ func main() {
 	flag.StringVar(&ua, "ua", "JSentinel/1.0 (+Passive JavaScript Analysis)", "User-Agent")
 	flag.BoolVar(&sameHost, "same-host", false, "Restrict crawling and JS collection to same host only")
 	flag.BoolVar(&verbose, "v", false, "Verbose logs")
+	flag.BoolVar(&showVersion, "version", false, "Show version information and exit")
+	flag.BoolVar(&skipUpdCheck, "no-update-check", false, "Skip checking latest version from GitHub")
+
+	flag.Usage = func() {
+		printBanner(skipUpdCheck)
+		fmt.Println("Usage:")
+		fmt.Println("  jsentinel -site https://target.com")
+		fmt.Println("  jsentinel -url https://target.com/app.js")
+		fmt.Println("  jsentinel -file ./app.js")
+		fmt.Println()
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
+
+	if showVersion {
+		printBanner(skipUpdCheck)
+		return
+	}
 
 	modeCount := 0
 	for _, v := range []string{filePath, targetURL, siteURL} {
@@ -49,8 +73,8 @@ func main() {
 			modeCount++
 		}
 	}
+
 	if modeCount != 1 {
-		fmt.Fprintln(os.Stderr, "You must use exactly one mode: -file OR -url OR -site")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -69,6 +93,8 @@ func main() {
 		SameHost:    sameHost,
 		Verbose:     verbose,
 	}
+
+	printBanner(skipUpdCheck)
 
 	rep, err := scanner.Run(cfg)
 	if err != nil {
@@ -89,13 +115,45 @@ func main() {
 
 	printConsole(rep)
 
-	if cfg.JSONOut == "" {
+	if cfg.JSONOut == "" && cfg.Verbose {
 		pretty, err := json.MarshalIndent(rep, "", "  ")
-		if err == nil && cfg.Verbose {
+		if err == nil {
 			fmt.Println()
 			fmt.Println(string(pretty))
 		}
 	}
+}
+
+func printBanner(skipUpdCheck bool) {
+	fmt.Println("============================================================")
+	fmt.Println("   JSentinel  |  Passive JavaScript Analysis Tool")
+	fmt.Println("------------------------------------------------------------")
+	fmt.Printf("   Author   : %s\n", version.Author)
+	fmt.Printf("   Version  : %s\n", version.Version)
+
+	if skipUpdCheck {
+		fmt.Println("   Status   : update check skipped")
+		fmt.Println("============================================================")
+		fmt.Println()
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	info := version.CheckLatest(ctx)
+
+	switch {
+	case info.IsLatest:
+		fmt.Printf("   Status   : %s ✅\n", info.Message)
+	case info.LatestVersion != "unknown":
+		fmt.Printf("   Status   : %s ⚠️ (latest: %s)\n", info.Message, info.LatestVersion)
+	default:
+		fmt.Printf("   Status   : %s\n", info.Message)
+	}
+
+	fmt.Println("============================================================")
+	fmt.Println()
 }
 
 func printConsole(rep report.Report) {
