@@ -1,13 +1,16 @@
-# Binaries
-jsentinel
+# Root binary only
+/jsentinel
+
+# Other binaries
 *.exe
 *.out
 
-# Test files
+# Test artifacts
 test.js
 report.md
+report.json
 
-# OS
+# OS files
 .DS_Store
 
 # Go
