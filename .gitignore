@@ -1,0 +1,15 @@
+# Binaries
+jsentinel
+*.exe
+*.out
+
+# Test files
+test.js
+report.md
+
+# OS
+.DS_Store
+
+# Go
+*.log
+vendor/
